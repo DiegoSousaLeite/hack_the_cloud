@@ -8,6 +8,7 @@
  */
 
 import { S3UploadRequestPayload, S3UploadResponsePayload } from '@/lib/types';
+import { generateUUID } from '@/lib/utils/uuid';
 
 const API_ENDPOINT = process.env.NEXT_PUBLIC_S3_UPLOAD_API_ENDPOINT || '';
 
@@ -16,7 +17,38 @@ const API_ENDPOINT = process.env.NEXT_PUBLIC_S3_UPLOAD_API_ENDPOINT || '';
  * Lambda Helper garante política de expiração curta (1 hora)
  */
 export async function getPreSignedUploadUrl(file: File): Promise<{ uploadUrl: string; s3_path: string }> {
+  // Garantir que enviamos um userId conforme a interface exige.
+  // Tentamos recuperar userInfo do localStorage (fluxo cliente). Se não houver, geramos e persistimos um userId.
+  let userId = '';
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('copiloto_userInfo');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.userId) userId = parsed.userId;
+        } catch {}
+      }
+
+      if (!userId) {
+        userId = localStorage.getItem('copiloto_userId') || '';
+      }
+
+      if (!userId) {
+        userId = generateUUID();
+        localStorage.setItem('copiloto_userId', userId);
+      }
+    } else {
+      // Ambiente server-side: gerar um id temporário (não persistido)
+      userId = generateUUID();
+    }
+  } catch (e) {
+    console.warn('Erro ao acessar localStorage para userId, gerando novo id', e);
+    userId = generateUUID();
+  }
+
   const payload: S3UploadRequestPayload = {
+    userId,
     fileName: file.name,
     fileType: file.type,
     fileSize: file.size

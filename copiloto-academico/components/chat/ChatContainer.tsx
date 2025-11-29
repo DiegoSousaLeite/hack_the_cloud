@@ -54,10 +54,33 @@ export default function ChatContainer({
     try {
       // Enviar para o backend (AWS Lambda/Bedrock)
       // Seguindo estrutura: sendMessage(messageContent, s3_paths, userInfo, segment_index)
+      // Tentamos recuperar `userInfo` do localStorage (fluxo onde a tela inicial já salvou nome/age).
+      // Se não existir, garantimos um `userId` persistido e enviamos um objeto mínimo.
+      let userInfo: { userId: string; name: string; age: number } | null = null;
+      try {
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('copiloto_userInfo');
+          if (stored) {
+            userInfo = JSON.parse(stored);
+          } else {
+            // Buscar userId persistido ou gerar um novo e salvar
+            let userId = localStorage.getItem('copiloto_userId');
+            if (!userId) {
+              userId = generateUUID();
+              localStorage.setItem('copiloto_userId', userId);
+            }
+            userInfo = { userId, name: '', age: 0 };
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao recuperar/salvar userInfo no localStorage', e);
+      }
+
       const llmResponse = await sendMessage(
         messageContent,
         s3_paths,
-        { name: '', age: 0 }, // userInfo - contexto do usuário
+        // Garantir que enviamos um objeto com userId — a API espera `UserInfo` completo
+        userInfo as any,
         messages.length + 1 // segment_index para ordenar a transcrição
       );
 
